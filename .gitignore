@@ -1,0 +1,41 @@
+# 环境变量 — 含密钥，绝对不提交
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# 虚拟环境
+venv/
+.venv/
+env/
+.env/
+
+# Ruff 缓存
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# 前端
+agent-ui/node_modules/
+agent-ui/dist/
+
+# 我的记忆文件（非项目代码）
+memory/
+MEMORY.md
+
+# Claude Code
+.claude/

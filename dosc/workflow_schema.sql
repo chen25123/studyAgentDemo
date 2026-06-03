@@ -1,0 +1,182 @@
+CREATE DATABASE IF NOT EXISTS agent_workflow
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_0900_ai_ci;
+
+USE agent_workflow;
+
+CREATE TABLE users (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  display_name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NULL,
+  phone VARCHAR(32) NULL,
+  avatar_url VARCHAR(500) NULL,
+  department VARCHAR(100) NULL,
+  job_title VARCHAR(100) NULL,
+  role_code VARCHAR(50) NOT NULL DEFAULT 'member',
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  last_login_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  created_by BIGINT UNSIGNED NULL,
+  updated_by BIGINT UNSIGNED NULL,
+  version INT UNSIGNED NOT NULL DEFAULT 1,
+
+  UNIQUE KEY uk_users_username (username),
+  UNIQUE KEY uk_users_email (email),
+  KEY idx_users_status (status),
+  KEY idx_users_department (department),
+  KEY idx_users_deleted_at (deleted_at),
+  CONSTRAINT fk_users_created_by FOREIGN KEY (created_by) REFERENCES users(id),
+  CONSTRAINT fk_users_updated_by FOREIGN KEY (updated_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE requirements (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  requirement_no VARCHAR(40) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'clarifying',
+  priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+  requirement_type VARCHAR(40) NOT NULL DEFAULT 'feature',
+  source VARCHAR(40) NULL,
+  product_line VARCHAR(100) NULL,
+  module_name VARCHAR(100) NULL,
+  version_name VARCHAR(100) NULL,
+  business_value TEXT NULL,
+  acceptance_criteria TEXT NULL,
+  creator_id BIGINT UNSIGNED NOT NULL,
+  product_owner_id BIGINT UNSIGNED NULL,
+  developer_owner_id BIGINT UNSIGNED NULL,
+  tester_owner_id BIGINT UNSIGNED NULL,
+  planned_start_at DATETIME NULL,
+  planned_due_at DATETIME NULL,
+  actual_start_at DATETIME NULL,
+  actual_done_at DATETIME NULL,
+  released_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  created_by BIGINT UNSIGNED NULL,
+  updated_by BIGINT UNSIGNED NULL,
+  version INT UNSIGNED NOT NULL DEFAULT 1,
+
+  UNIQUE KEY uk_requirements_no (requirement_no),
+  KEY idx_requirements_status (status),
+  KEY idx_requirements_priority (priority),
+  KEY idx_requirements_product_module (product_line, module_name),
+  KEY idx_requirements_creator (creator_id),
+  KEY idx_requirements_product_owner (product_owner_id),
+  KEY idx_requirements_developer_owner (developer_owner_id),
+  KEY idx_requirements_tester_owner (tester_owner_id),
+  KEY idx_requirements_planned_due (planned_due_at),
+  KEY idx_requirements_deleted_at (deleted_at),
+  CONSTRAINT fk_requirements_creator FOREIGN KEY (creator_id) REFERENCES users(id),
+  CONSTRAINT fk_requirements_product_owner FOREIGN KEY (product_owner_id) REFERENCES users(id),
+  CONSTRAINT fk_requirements_developer_owner FOREIGN KEY (developer_owner_id) REFERENCES users(id),
+  CONSTRAINT fk_requirements_tester_owner FOREIGN KEY (tester_owner_id) REFERENCES users(id),
+  CONSTRAINT fk_requirements_created_by FOREIGN KEY (created_by) REFERENCES users(id),
+  CONSTRAINT fk_requirements_updated_by FOREIGN KEY (updated_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE bugs (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  bug_no VARCHAR(40) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'new',
+  severity VARCHAR(20) NOT NULL DEFAULT 'major',
+  priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+  bug_type VARCHAR(40) NOT NULL DEFAULT 'functional',
+  source VARCHAR(40) NULL,
+  product_line VARCHAR(100) NULL,
+  module_name VARCHAR(100) NULL,
+  environment VARCHAR(100) NULL,
+  reproduce_steps TEXT NULL,
+  expected_result TEXT NULL,
+  actual_result TEXT NULL,
+  root_cause TEXT NULL,
+  fix_solution TEXT NULL,
+  requirement_id BIGINT UNSIGNED NULL,
+  reporter_id BIGINT UNSIGNED NOT NULL,
+  assignee_id BIGINT UNSIGNED NULL,
+  verifier_id BIGINT UNSIGNED NULL,
+  found_version VARCHAR(100) NULL,
+  fixed_version VARCHAR(100) NULL,
+  planned_due_at DATETIME NULL,
+  fixed_at DATETIME NULL,
+  verified_at DATETIME NULL,
+  closed_at DATETIME NULL,
+  reopened_count INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  created_by BIGINT UNSIGNED NULL,
+  updated_by BIGINT UNSIGNED NULL,
+  version INT UNSIGNED NOT NULL DEFAULT 1,
+
+  UNIQUE KEY uk_bugs_no (bug_no),
+  KEY idx_bugs_status (status),
+  KEY idx_bugs_severity_priority (severity, priority),
+  KEY idx_bugs_requirement (requirement_id),
+  KEY idx_bugs_reporter (reporter_id),
+  KEY idx_bugs_assignee (assignee_id),
+  KEY idx_bugs_verifier (verifier_id),
+  KEY idx_bugs_product_module (product_line, module_name),
+  KEY idx_bugs_planned_due (planned_due_at),
+  KEY idx_bugs_deleted_at (deleted_at),
+  CONSTRAINT fk_bugs_requirement FOREIGN KEY (requirement_id) REFERENCES requirements(id),
+  CONSTRAINT fk_bugs_reporter FOREIGN KEY (reporter_id) REFERENCES users(id),
+  CONSTRAINT fk_bugs_assignee FOREIGN KEY (assignee_id) REFERENCES users(id),
+  CONSTRAINT fk_bugs_verifier FOREIGN KEY (verifier_id) REFERENCES users(id),
+  CONSTRAINT fk_bugs_created_by FOREIGN KEY (created_by) REFERENCES users(id),
+  CONSTRAINT fk_bugs_updated_by FOREIGN KEY (updated_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE workflow_status_logs (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  entity_type VARCHAR(30) NOT NULL,
+  entity_id BIGINT UNSIGNED NOT NULL,
+  from_status VARCHAR(40) NULL,
+  to_status VARCHAR(40) NOT NULL,
+  reason VARCHAR(500) NULL,
+  operator_id BIGINT UNSIGNED NOT NULL,
+  operated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  KEY idx_status_logs_entity (entity_type, entity_id, operated_at),
+  KEY idx_status_logs_operator (operator_id, operated_at),
+  CONSTRAINT fk_status_logs_operator FOREIGN KEY (operator_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE workflow_comments (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  entity_type VARCHAR(30) NOT NULL,
+  entity_id BIGINT UNSIGNED NOT NULL,
+  content TEXT NOT NULL,
+  author_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+
+  KEY idx_comments_entity (entity_type, entity_id, created_at),
+  KEY idx_comments_author (author_id, created_at),
+  CONSTRAINT fk_comments_author FOREIGN KEY (author_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE workflow_attachments (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  entity_type VARCHAR(30) NOT NULL,
+  entity_id BIGINT UNSIGNED NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_url VARCHAR(1000) NOT NULL,
+  file_size BIGINT UNSIGNED NULL,
+  mime_type VARCHAR(100) NULL,
+  uploader_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+
+  KEY idx_attachments_entity (entity_type, entity_id, created_at),
+  KEY idx_attachments_uploader (uploader_id, created_at),
+  CONSTRAINT fk_attachments_uploader FOREIGN KEY (uploader_id) REFERENCES users(id)
+) ENGINE=InnoDB;
