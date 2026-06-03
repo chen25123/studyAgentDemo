@@ -1,6 +1,12 @@
 # 启动mysql
     Start-Process -FilePath "E:\mysql\mysql-8.4.6-winx64\bin\mysqld.exe" -ArgumentList "--defaults-file=E:\mysql\my.ini" -WindowStyle Hidden
 
+# 启动py
+    python -m uvicorn llm.api.app:app --host 127.0.0.1 --port 8010 --reload                                                                                                   
+
+# 关联我的git仓库
+    git remote add origin https://github.com/chen25123/studyAgentDemo.git
+
 # 安装openai
     pip install openai
     OpenAI 官方提供的 Python SDK，主要作用是：

@@ -7,10 +7,12 @@ from langchain_openai import ChatOpenAI
 
 from llm.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 from llm.repositories.llm_trace_repository import LlmTraceRepository
+from llm.tools.bug_tools import get_bug_count_by_time, get_bug_status
+from llm.tools.time_tool import get_now_date
 
 DEVFLOW_SYSTEM_PROMPT = (
     "你是 DevFlow Agent，一个面向研发流程数据分析的 AI Agent。"
-    "当前阶段你只能进行普通对话，不能查询数据库，也不能修改数据。"
+    "当前阶段你只能进行普通对话，查询数据使用工具，修改数据请使用工具，如无工具可用，则说目前没有这个能力，后续改进。"
     "回答必须客观、简洁、基于事实和清晰逻辑。"
     "当用户提到统计口径时，要主动说明你的理解；"
     "例如“新建 Bug”默认表示创建时间在统计周期内的 Bug，"
@@ -29,7 +31,7 @@ class DevFlowAgent:
 
         self.agent = create_agent(
             model=model,
-            tools=[],
+            tools=[get_bug_count_by_time, get_bug_status, get_now_date],
             system_prompt=DEVFLOW_SYSTEM_PROMPT,
         )
 
