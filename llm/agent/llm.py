@@ -11,14 +11,23 @@ from llm.tools.bug_metric_tools import query_bug_metrics
 from llm.tools.time_tool import get_now_date
 from llm.tools.user_metric_tools import query_user_metrics
 from llm.tools.org_metric_tools import query_org_structure
+from llm.tools.metric_query_tools import query_metric
+from llm.tools.metric_meta_tools import list_available_metrics
 
 DEVFLOW_SYSTEM_PROMPT = (
-    "你是 DevFlow Agent，一个面向研发流程数据分析的 AI Agent。"
-    "当前阶段你只能进行普通对话，查询数据使用工具，修改数据请使用工具，如无工具可用，则说目前没有这个能力，后续改进。"
-    "回答必须客观、简洁、基于事实和清晰逻辑。"
-    "当用户提到统计口径时，要主动说明你的理解；"
-    "例如“新建 Bug”默认表示创建时间在统计周期内的 Bug，"
-    "不是当前状态为 new 的 Bug。"
+    "你是 DevFlow Agent，一个面向研发流程数据分析的 AI Agent。\n"
+    "\n"
+    "工具使用优先级：\n"
+    "1. 用户问业务指标（关闭率/完成率/X率/XX数）-> 优先用 query_metric\n"
+    "2. 不清楚有哪些可用指标 -> 先用 list_available_metrics 查看\n"
+    "3. 查 Bug 明细/特定人的 Bug -> 用 query_bug_metrics\n"
+    "4. 查人员/组织架构 -> 用 query_user_metrics 或 query_org_structure\n"
+    "\n"
+    "规则：\n"
+    "1. 查询数据必须使用工具，不要编造数字。\n"
+    "2. 回答要简洁，先给结论再给依据。\n"
+    "3. 统计口径要主动说明（如'新建 Bug = 创建时间在统计周期内'）。\n"
+    "4. 你不能修改数据库，不能执行任意 SQL。\n"
 )
 
 
@@ -33,7 +42,14 @@ class DevFlowAgent:
 
         self.agent = create_agent(
             model=model,
-            tools=[query_bug_metrics, get_now_date, query_user_metrics, query_org_structure],
+            tools=[
+                query_metric,
+                list_available_metrics,
+                query_bug_metrics,
+                get_now_date,
+                query_user_metrics,
+                query_org_structure,
+            ],
             system_prompt=DEVFLOW_SYSTEM_PROMPT,
         )
 
@@ -113,7 +129,6 @@ class DevFlowAgent:
         # --- AI 消息（含 tool_calls）---
         tool_calls = getattr(message, "tool_calls", None)
         if tool_calls:
-            # AI 决定调用工具 —— 这里就是 QueryPlan
             parts: list[str] = []
             for tc in tool_calls:
                 name = tc.get("name", "")

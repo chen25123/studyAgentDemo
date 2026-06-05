@@ -1,219 +1,213 @@
 # DevFlow Agent — 面试项目总结
 
+> 最后更新：2026-06-05
+
 ---
 
 ## 一、一句话概括
 
-> **一个面向研发流程管理的 AI Agent 系统。团队用自然语言提问，Agent 自动查询数据库、解释口径、分析风险、生成报告，并在受控条件下执行工作流操作。当前完成第一阶段：全栈基础对话闭环。**
+> **一个数据库驱动的 AI 指标分析系统。团队用自然语言提问，Agent 基于语义层生成结构化 QueryPlan，后端白名单校验后编译参数化 SQL 执行。不是套壳聊天机器人，是 LLM + 语义层 + 安全引擎的完整闭环。**
 
 ---
 
 ## 二、解决了什么问题
 
-研发团队日常面对大量数据查询需求——"上个月关闭率多少？""哪些模块 Bug 重开率高？""延期需求集中在哪些人？"——每次都要写 SQL、导出 Excel、人为解读。DevFlow Agent 的核心价值：
-
-1. **降低数据门槛**：PM、QA、TL 用自然语言直接问，不需要会 SQL。
-2. **统一统计口径**：Agent 内置业务口径（如"新建 Bug = 创建时间在统计周期内"），避免不同人不同数。
-3. **安全可控**：LLM 不能直接操作数据库，所有查询走受控工具层，写操作需要人工确认 + 状态机校验 + 事务保护。
-4. **可观测**：每次 LLM 调用的完整 messages、耗时、状态都可追溯。
+1. **新增指标不用改代码**：指标定义存在数据库语义层表中，INSERT 一行即可上线，不需要改 Python 代码、不需要重启服务
+2. **LLM 无权生成 SQL**：Agent 只输出 QueryPlan（结构化查询意图），后端 Metric Engine 校验后编译参数化 SQL，不存在 SQL 注入
+3. **口径可审计**：每次查询的 QueryPlan + 编译 SQL + 耗时全部存入 `metric_query_logs`，可追溯
+4. **维度可复用**：组织架构、模块、状态等维度定义一次，所有指标共享
 
 ---
 
-## 三、技术架构
+## 三、技术架构（当前状态）
 
 ```
-┌─────────────────────────────────────────────┐
-│  agent-ui (Vue 3 + Vite + TypeScript)       │
-│  只负责展示和调用 API，不连数据库            │
-└──────────────────┬──────────────────────────┘
-                   │ HTTP + SSE
-┌──────────────────▼──────────────────────────┐
-│  FastAPI (Python)                            │
-│  请求校验、CORS、错误处理、会话管理          │
-└──────────────────┬──────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  agent-ui (Vue 3 + Vite + TypeScript)        │
+│  对话界面 + 指标展示 + LLM Trace 管理         │
+└──────────────────┬───────────────────────────┘
+                   │ HTTP POST
+┌──────────────────▼───────────────────────────┐
+│  FastAPI (Python 3.13)                        │
+│  /health  /api/chat  /api/admin/llm-traces   │
+└──────────────────┬───────────────────────────┘
                    │
-┌──────────────────▼──────────────────────────┐
-│  Agent Runtime (LangGraph)                   │  ← 规划中
-│  状态管理、节点流转、工具调用循环、中断确认   │
-└──────────────────┬──────────────────────────┘
+┌──────────────────▼───────────────────────────┐
+│  Agent Runtime (LangChain create_agent)       │
+│  6 个工具：query_metric / query_bug_metrics / │
+│  query_user_metrics / query_org_structure /   │
+│  list_available_metrics / get_now_date        │
+└──────────────────┬───────────────────────────┘
                    │
-┌──────────────────▼──────────────────────────┐
-│  Tools Layer                                 │  ← 规划中
-│  受控工具：查 Bug 统计、查需求状态、生成报告  │
-│  写操作需确认 + 状态机校验 + 事务            │
-└──────────────────┬──────────────────────────┘
+┌──────────────────▼───────────────────────────┐
+│  Metric Engine（核心）                        │
+│  1. 校验 QueryPlan（白名单）                  │
+│  2. 读取语义层定义（Entity/Dimension/Measure/ │
+│     Metric 四层元数据表）                      │
+│  3. 编译参数化 SQL（ratio → 子查询）          │
+│  4. 执行 + 格式化结果 + 口径说明              │
+└──────────────────┬───────────────────────────┘
                    │ 参数化 SQL
-┌──────────────────▼──────────────────────────┐
-│  Repository Layer (SQLAlchemy)               │
-│  数据访问层，只做参数化查询和事务管理         │
-└──────────────────┬──────────────────────────┘
+┌──────────────────▼───────────────────────────┐
+│  Repository Layer (SQLAlchemy Core)           │
+│  16 张表：业务表 + 语义层表 + 审计日志表      │
+└──────────────────┬───────────────────────────┘
                    │
-┌──────────────────▼──────────────────────────┐
-│  MySQL (agent_workflow)                      │
-│  users / requirements / bugs / 状态日志       │
-└─────────────────────────────────────────────┘
+┌──────────────────▼───────────────────────────┐
+│  MySQL 8.0 (agent_workflow)                   │
+│  500 用户 / 2 万需求 / 8 万 Bug / 48 组织节点 │
+└──────────────────────────────────────────────┘
 ```
-
-**分层核心原则**：每层只做自己的事，不可跨层。前端不连数据库、Agent 不写 SQL、LLM 输出不进数据库。
 
 ---
 
-## 四、技术选型及理由
+## 四、核心亮点（面试重点）
+
+### 4.1 语义层（Metric Layer）— 数据库驱动的指标引擎
+
+**不是简单的 if/else 白名单**，而是一套完整的四层元数据系统：
+
+| 层 | 表 | 职责 | 示例 |
+|---|---|---|---|
+| Entity | `entity_definitions` | 定义业务对象 | `bug` → base_table=bugs |
+| Dimension | `dimension_definitions` | 过滤/分组字段 + JOIN 配置 | `assignee_org_name` → JOIN org_units |
+| Measure | `measure_definitions` | 最小聚合单元 | `closed_bug_count` → SUM(CASE WHEN...) |
+| Metric | `metric_definitions` | 面向用户的业务指标 | `bug_close_rate` → ratio(closed/total) |
+
+**新增一个指标只需一条 SQL**：
+```sql
+INSERT INTO metric_definitions (metric_code, metric_name, ...)
+VALUES ('bug_reopen_rate', 'Bug 重开率', ...);
+```
+
+不需要改 Python 代码、不需要重启服务。
+
+### 4.2 安全：LLM → QueryPlan → 白名单 → 编译 SQL
+
+```
+用户: "研发一部本月 Bug 关闭率是多少？"
+  ↓
+LLM 生成 QueryPlan（不是 SQL！）:
+  { metric_codes: ["bug_close_rate"], time_range: {...},
+    filters: {"assignee_org_name": "研发一部"} }
+  ↓
+Metric Engine 校验:
+  - bug_close_rate 存在且 status=active? ✓
+  - assignee_org_name 在白名单维度里? ✓
+  - group_by 在白名单里? ✓
+  ↓
+Metric Engine 编译 SQL:
+  - 读 entity_definitions → base_table=bugs
+  - 读 dimension_definitions → JOIN user_org_memberships + org_units
+  - 读 measure_definitions → SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END)
+  - 读 metric_definitions → formula_type=ratio → 外层子查询
+  ↓
+参数化执行 → 返回 14.29% + 口径说明
+```
+
+LLM **从头到尾没见过一行 SQL**。它在白名单范围内选择指标和维度，后端负责编译和执行。
+
+### 4.3 LLM Trace — 完整可观测
+
+- `llm_messages` 表记录三类消息：`chat` / `tool_call`（含完整 QueryPlan JSON）/ `tool_result`
+- `metric_query_logs` 表记录每次指标查询的 QueryPlan + 编译后 SQL + 耗时
+- 前端 `/admin/llm-traces` 页面可完整回溯每次 Agent 推理过程
+
+### 4.4 组织架构 — 物化路径 + JOIN 按需加载
+
+- `org_units` 表使用物化路径（`path`），支持树形查询
+- `user_org_memberships` 表连接用户和组织
+- Repository 根据查询维度**按需 JOIN**：不涉及组织字段时不 JOIN，零额外开销
+- 工具层返回 Unicode 树形结构（`├──` `└──` `│`）
+
+### 4.5 数据库设计
+
+16 张表，21 万+行种子数据：
+
+| 类别 | 表 |
+|---|---|
+| 业务 (6) | users / requirements / bugs / workflow_status_logs / workflow_comments / workflow_attachments |
+| 组织 (2) | org_units / user_org_memberships |
+| Trace (2) | llm_conversations / llm_messages |
+| 语义层 (6) | entity_definitions / dimension_definitions / measure_definitions / metric_definitions / metric_change_logs / metric_query_logs |
+
+设计规范：软删除（`deleted_at`）、乐观锁（`version`）、状态日志、外键约束、物化路径。
+
+---
+
+## 五、技术选型及理由
 
 | 选型 | 理由 |
 |---|---|
-| **FastAPI** | 原生异步、Pydantic 数据校验、自动 OpenAPI 文档 |
-| **LangGraph**（规划） | 相比 LangChain AgentExecutor，LangGraph 提供显式状态图、条件分支、人工中断节点，更适合多步骤业务 Agent |
-| **Vue 3 + Pinia** | 组合式 API 比 Options API 更灵活；Pinia 比 Vuex 更简洁，TypeScript 支持更好 |
-| **SSE**（规划，非 WebSocket） | Agent 输出是单向流式推送，SSE 浏览器原生支持、实现简单、调试方便。需双向控制时再升级 WebSocket |
-| **SQLAlchemy + Alembic** | 参数化查询防注入，Alembic 做数据库版本管理 |
-| **pydantic-settings** | 12-Factor App 配置管理，环境变量注入，禁止硬编码密钥 |
-| **qwen-plus + OpenAI 兼容端点** | 通过 DashScope 接入国产大模型，兼容 OpenAI SDK 接口标准，切换模型零成本 |
+| **FastAPI** | 原生异步、Pydantic 校验、自动 OpenAPI 文档 |
+| **LangChain create_agent** | 当前阶段：工具调用循环足够。后期升级 LangGraph 做显式状态管理 |
+| **语义层数据库驱动** | 指标定义存 MySQL 而非 Python 代码，新增指标零代码零重启 |
+| **SQLAlchemy Core** | 参数化查询防注入；只读查询用 Core 比 ORM 更直接，无 N+1 问题 |
+| **Vue 3 + Pinia** | 组合式 API + TypeScript strict |
+| **pydantic-settings** | 12-Factor App 配置，支持多模型（DashScope + DeepSeek） |
 
 ---
 
-## 五、项目亮点（面试重点）
+## 六、高频面试问题预答
 
-### 5.1 不是"套壳"聊天机器人
+### Q1: 为什么不让 LLM 直接生成 SQL？
 
-市场上很多 AI Agent 项目本质是 `input → LLM → output` 的简单包装。这个项目的关键区别：
+- **安全**：LLM 只输出 QueryPlan，后端白名单校验后才编译 SQL，SQL 注入不可能
+- **口径一致**：指标定义集中在 semantic layer，不会出现不同人问同样问题得到不同 SQL
+- **可审计**：每次查询的 QueryPlan + 编译 SQL 存入 metric_query_logs
 
-- **Agent 不能直接操作数据库**。LLM 只负责理解意图和生成回复，数据库查询通过**工具白名单 + Repository 参数化 SQL** 执行。
-- **Agent 不能绕过状态机**。Bug 从 `new → closed` 必须经过合法路径（`new → processing → fixed → closed`），写操作由后端规则校验，不是 LLM 决定。
-- **口径设计**。比如"新建 Bug = 创建时间在统计周期内"，不是 `status = 'new'`。业务语义和数据库查询之间有一层显式映射。
+### Q2: 语义层和普通白名单有什么区别？
 
-### 5.2 LLM Trace 可观测性
+普通白名单（`if filter_name == "status": sql += ...`）是硬编码在 Python 里的。语义层把 Entity、Dimension、Measure、Metric 存在数据库，新增指标 INSERT 一行就行，维度 JOIN 配置是 JSON，不是 if/else。
 
-自建了完整的 LLM 调用追踪系统：
-- `llm_conversations` 表记录每次调用的 trace_id、模型、耗时、状态（success/failed）、token 消耗
-- `llm_messages` 表记录完整的 system prompt + user + assistant + tool call 消息链
-- 前端 `/admin/llm-traces` 页面可查看、回溯每次 LLM 交互
+### Q3: 新增一个指标需要做什么？
 
-这个设计在面试中能体现**工程素养**——LLM 是不确定的，必须能追踪每一步推理过程。
+```sql
+-- 1. 定义度量（如果不存在）
+INSERT INTO measure_definitions ...;
 
-### 5.3 安全设计前置
-
-从设计阶段就定义了安全策略：
-
-| 层 | 安全措施 |
-|---|---|
-| 前端 | 不存 API Key、不传 SQL、不直接连数据库 |
-| 后端 | 环境变量管理密钥、CORS 限制来源、Pydantic 输入校验 |
-| Agent | 不执行任意 SQL、不决定权限、不绕过状态机 |
-| 数据库 | 参数化查询、建议分离只读/读写账号、写操作事务保护 |
-
-面试中可以强调：**安全不是后期打补丁，而是在架构设计时就内建了。**
-
-### 5.4 数据库设计规范
-
-6 张业务表，设计体现实际研发管理经验：
-
-- **软删除**（`deleted_at`）而非物理删除
-- **乐观锁**（`version`）防止并发写冲突
-- **状态日志**（`workflow_status_logs`）记录每次变更的 from_status、to_status、operator、time，实现完整审计
-- **外键约束**保证引用完整性
-- 20 万行种子数据（用 CTE 递归生成）方便开发和测试
-
-### 5.5 前后端类型对应
-
-后端 Pydantic Schema 和前端 TypeScript Interface 字段一一对应：
-
-```python
-# 后端 (Pydantic)
-class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=4000)
-    session_id: str = Field(default="default")
+-- 2. 定义指标
+INSERT INTO metric_definitions (metric_code, metric_name, formula_type, formula_config, ...)
+VALUES ('bug_reopen_rate', 'Bug 重开率', 'ratio', '{"numerator":"reopened_bug_count","denominator":"bug_count"}', ...);
 ```
 
-```typescript
-// 前端 (TypeScript)
-export interface ChatResponse {
-  session_id: string;
-  reply: string;
-}
+改完即时生效，Agent 下次对话就能查到。
+
+### Q4: ratio 指标的 SQL 怎么编译的？
+
+```sql
+-- 内层子查询：分别计算分子分母
+SELECT module_name,
+  SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END) AS closed_bug_count,
+  COUNT(*) AS bug_count
+FROM bugs b WHERE ...
+
+-- 外层：除法
+SELECT module_name,
+  ROUND(closed_bug_count / NULLIF(bug_count, 0) * 100, 2) AS bug_close_rate
+FROM (...) sub
 ```
 
-减少了前后端字段不一致导致的运行时错误。
+### Q5: 组织架构查询怎么做 JOIN 的？
+
+不是每次查询都 JOIN 组织表。Repository 会检测当前查询涉及的维度需要哪些 JOIN，只加必要的。查"本月 Bug 总数"时不 JOIN 组织表，查"研发一部 Bug 数"时才 JOIN。
 
 ---
 
-## 六、当前完成度与下一步
-
-### 已完成（阶段一）
-
-| 模块 | 完成情况 |
-|---|---|
-| Python 后端分层骨架 | API → Service → Agent → Repository → DB 五层全部搭建 |
-| FastAPI 路由 | `/health`、`POST /api/chat`、`GET /api/admin/llm-traces` |
-| Agent 核心 | LangChain create_agent + 会话记忆（滑动窗口 20 条） |
-| LLM Trace | 完整记录每次 LLM 调用的 messages + 耗时 + 状态 |
-| Vue 3 前端 | 对话界面 + Trace 管理 + 响应式布局 |
-| MySQL 数据库 | 8 张表，含完整种子数据（500 用户、2 万需求、8 万 Bug） |
-| 工程化 | pyproject.toml（Ruff + Pytest）、.gitignore、Alembic 迁移骨架 |
-
-### 下一步（阶段二）
-
-- 实现业务 Repository（bug/requirement 查询）
-- 实现工具层（7 个只读查询工具）
-- 搭建 LangGraph 状态图，替代当前简易 Agent
-- 前端指标面板接入后端真实数据
-
----
-
-## 七、高频面试问题预答
-
-### Q1: 为什么用 LangGraph 而不是直接用 LangChain Agent？
-
-LangChain 的 `create_agent` 适合快速原型，但它是个黑盒——调用工具、循环处理、返回结果都在框架内部。DevFlow 这个场景需要：
-- **显式状态**（意图分类、时间范围、待确认操作）
-- **条件分支**（闲聊直接回复、查数走工具、写操作走确认）
-- **人工中断**（写操作前等待用户确认）
-- **失败恢复**（工具调用失败后重试或降级）
-
-这些用 LangGraph 的 `StateGraph` 显式建模更可控、更好调试。
-
-### Q2: 为什么不让 LLM 直接生成 SQL？
-
-四个原因：
-1. **安全**：Prompt Injection 可能诱导生成恶意 SQL
-2. **口径一致**："新建 Bug"的业务语义和 SQL `WHERE` 条件之间容易偏差
-3. **权限**：一条万能 SQL 工具无法做细粒度权限控制
-4. **测试**：有限工具的白名单比任意 SQL 好测得多
-
-### Q3: 记忆管理怎么做的？
-
-短期用滑动窗口（保留最近 20 条对话），超出窗口时计划用 LLM 压缩历史做摘要。长期规划引入向量数据库做语义检索，让 Agent 记住用户的偏好口径（如"报告用中文"、"默认统计过去 30 天"）。
-
-### Q4: 写操作的安全性怎么保证？
-
-五道防线：
-1. Agent 解析意图 → 生成 `pending_action`
-2. 前端展示确认弹窗
-3. 用户确认 → 后端校验状态机合法性
-4. 开启数据库事务
-5. 主表更新 + 状态日志写入同时成功或回滚
-
-### Q5: 前后端怎么通信？为什么选这样设计？
-
-非流式用普通 POST JSON，流式用 SSE。选 SSE 而非 WebSocket 的原因：
-- Agent 输出天然是单向推送（不需要前端持续发消息）
-- 浏览器原生 `EventSource` 支持，不需要额外库
-- FastAPI 的 `StreamingResponse` 实现成本极低
-- 后期需要双向打断时再升级，优先用最简单的方案
-
----
-
-## 八、技术栈速览
+## 七、技术栈速览
 
 | 类别 | 技术 |
 |---|---|
-| 框架 | Vue 3, FastAPI |
-| 语言 | TypeScript (strict), Python 3.13 |
-| Agent | LangChain + LangGraph |
-| LLM | qwen-plus (DashScope / OpenAI 兼容协议) |
-| 数据库 | MySQL 8.0 |
-| ORM | SQLAlchemy 2.0 + Alembic |
-| 配置 | pydantic-settings, python-dotenv |
-| 构建 | Vite 7 |
-| 状态管理 | Pinia 3 |
-| 代码质量 | Ruff (Python), vue-tsc (TypeScript) |
+| 前端 | Vue 3 + Vite 7 + TypeScript (strict) + Pinia 3 + Vue Router 4 |
+| 后端 | Python 3.13 / FastAPI / LangChain / SQLAlchemy Core |
+| LLM | DeepSeek v4-pro + qwen-plus（OpenAI 兼容协议，可切换） |
+| 数据库 | MySQL 8.0（16 张表，21 万+行种子数据） |
+| 语义层 | Entity → Dimension → Measure → Metric 四层元数据 |
+| 工程化 | pyproject.toml (Ruff + Pytest) / Alembic / .gitignore |
+| 配置 | pydantic-settings / 12-Factor App / .env 环境变量 |
+
+---
+
+## 八、GitHub
+
+https://github.com/chen25123/studyAgentDemo

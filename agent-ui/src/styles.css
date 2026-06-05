@@ -28,8 +28,9 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 260px minmax(420px, 1fr) 330px;
-  min-height: 100vh;
+  grid-template-columns: 260px 1fr 330px;
+  height: 100vh;
+  overflow: hidden;
   background:
     linear-gradient(90deg, #ffffff 0 260px, transparent 260px),
     #eef2f5;
@@ -38,6 +39,7 @@ button {
 .sidebar,
 .insights {
   padding: 24px;
+  overflow-y: auto;
 }
 
 .sidebar {
@@ -143,6 +145,7 @@ button {
   min-width: 0;
   flex-direction: column;
   padding: 24px;
+  overflow-y: auto;
 }
 
 .workspace-wide {
@@ -503,7 +506,8 @@ button {
 
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 220px 1fr;
+    overflow-y: auto;
   }
 
   .insights {
@@ -516,6 +520,8 @@ button {
 @media (max-width: 760px) {
   .app-shell {
     display: block;
+    height: auto;
+    overflow-y: visible;
   }
 
   .workspace-wide {
