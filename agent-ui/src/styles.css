@@ -364,9 +364,10 @@ button {
   opacity: 0.8;
 }
 
-.message p {
+.message-text {
   margin: 0;
   line-height: 1.7;
+  white-space: pre-wrap;
 }
 
 .suggestions {

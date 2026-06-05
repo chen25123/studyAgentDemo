@@ -7,8 +7,10 @@ from langchain_openai import ChatOpenAI
 
 from llm.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 from llm.repositories.llm_trace_repository import LlmTraceRepository
-from llm.tools.bug_tools import get_bug_count_by_time, get_bug_status
+from llm.tools.bug_metric_tools import query_bug_metrics
 from llm.tools.time_tool import get_now_date
+from llm.tools.user_metric_tools import query_user_metrics
+from llm.tools.org_metric_tools import query_org_structure
 
 DEVFLOW_SYSTEM_PROMPT = (
     "你是 DevFlow Agent，一个面向研发流程数据分析的 AI Agent。"
@@ -31,7 +33,7 @@ class DevFlowAgent:
 
         self.agent = create_agent(
             model=model,
-            tools=[get_bug_count_by_time, get_bug_status, get_now_date],
+            tools=[query_bug_metrics, get_now_date, query_user_metrics, query_org_structure],
             system_prompt=DEVFLOW_SYSTEM_PROMPT,
         )
 
@@ -96,16 +98,48 @@ class DevFlowAgent:
 
             raise
 
-    def _message_to_dict(self, message: BaseMessage | dict[str, str]) -> dict[str, str]:
-        """把 LangChain message 或普通 dict 转成可以写入 llm_messages 的结构。"""
-
+    def _message_to_dict(
+        self, message: BaseMessage | dict[str, str]
+    ) -> dict[str, str | None]:
+        """把 LangChain message 转成 llm_messages 行的结构。"""
         if isinstance(message, dict):
             return {
                 "role": message["role"],
-                "content": message["content"],
+                "content": message.get("content", ""),
+                "message_type": "chat",
+                "tool_name": None,
             }
 
+        # --- AI 消息（含 tool_calls）---
+        tool_calls = getattr(message, "tool_calls", None)
+        if tool_calls:
+            # AI 决定调用工具 —— 这里就是 QueryPlan
+            parts: list[str] = []
+            for tc in tool_calls:
+                name = tc.get("name", "")
+                args = tc.get("args", {})
+                parts.append(f"[调用工具: {name}]\n参数: {args}")
+            return {
+                "role": message.type,
+                "content": "\n".join(parts),
+                "message_type": "tool_call",
+                "tool_name": ",".join(tc.get("name", "") for tc in tool_calls),
+            }
+
+        # --- Tool 返回消息 ---
+        tool_call_id = getattr(message, "tool_call_id", None)
+        if tool_call_id:
+            return {
+                "role": message.type,
+                "content": str(message.content),
+                "message_type": "tool_result",
+                "tool_name": getattr(message, "name", None),
+            }
+
+        # --- 普通对话消息 ---
         return {
             "role": message.type,
             "content": str(message.content),
+            "message_type": "chat",
+            "tool_name": None,
         }

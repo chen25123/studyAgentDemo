@@ -53,7 +53,7 @@ class LlmTraceRepository:
         self,
         trace_id: str,
         session_id: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, str | None]],
     ) -> None:
         if not messages:
             return
@@ -66,7 +66,8 @@ class LlmTraceRepository:
                 message_order,
                 role,
                 content,
-                message_type
+                message_type,
+                tool_name
             )
             VALUES (
                 :trace_id,
@@ -74,7 +75,8 @@ class LlmTraceRepository:
                 :message_order,
                 :role,
                 :content,
-                'chat'
+                :message_type,
+                :tool_name
             )
             """
         )
@@ -86,6 +88,8 @@ class LlmTraceRepository:
                 "message_order": index + 1,
                 "role": message["role"],
                 "content": message["content"],
+                "message_type": message.get("message_type", "chat"),
+                "tool_name": message.get("tool_name"),
             }
             for index, message in enumerate(messages)
         ]

@@ -20,7 +20,7 @@ defineProps<{
         <span>{{ message.role === "agent" ? "Agent" : "你" }}</span>
         <time>{{ message.time }}</time>
       </div>
-      <p>{{ message.content }}</p>
+      <p class="message-text">{{ message.content }}</p>
     </article>
 
     <article v-if="loading" class="message message-agent">
@@ -28,7 +28,7 @@ defineProps<{
         <span>Agent</span>
         <time>{{ nowTime() }}</time>
       </div>
-      <p>正在分析...</p>
+      <p class="message-text">正在分析...</p>
     </article>
   </div>
 </template>
