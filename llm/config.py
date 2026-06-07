@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     ds_model: str = Field(default="deepseek-v4-pro", alias="DS_MODEL")
 
     admin_token: str = Field(default="", alias="ADMIN_TOKEN")
+    jwt_secret: str = Field(default="dev-secret", alias="JWT_SECRET")
     frontend_origin: str = Field(default="http://127.0.0.1:5173", alias="FRONTEND_ORIGIN")
 
     db_host: str = Field(default="127.0.0.1", alias="DB_HOST")
@@ -76,4 +77,5 @@ LLM_BASE_URL = settings.llm_base_url
 LLM_MODEL = settings.llm_model
 
 ADMIN_TOKEN = settings.admin_token
+JWT_SECRET = settings.jwt_secret
 FRONTEND_ORIGIN = settings.frontend_origin
