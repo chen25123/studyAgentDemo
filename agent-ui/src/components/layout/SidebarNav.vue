@@ -61,6 +61,14 @@ function isActive(name: string): boolean {
       >
         LLM Trace
       </button>
+      <button
+        class="nav-item nav-item-muted"
+        :class="{ active: isActive('admin-metrics') }"
+        type="button"
+        @click="router.push({ name: 'admin-metrics' })"
+      >
+        指标管理
+      </button>
     </nav>
 
     <section class="source-panel">

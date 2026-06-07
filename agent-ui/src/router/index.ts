@@ -5,6 +5,8 @@ import ChatView from "../views/ChatView.vue";
 import LlmTraceView from "../views/LlmTraceView.vue";
 import LoginView from "../views/LoginView.vue";
 import ReqMetricsView from "../views/ReqMetricsView.vue";
+import MetricDetail from "../views/admin/MetricDetail.vue";
+import MetricsAdmin from "../views/admin/MetricsAdmin.vue";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -14,14 +16,27 @@ export const router = createRouter({
     { path: "/chat", name: "chat", component: ChatView, meta: { requiresAuth: true } },
     { path: "/quality/bugs", name: "bug-metrics", component: BugMetricsView, meta: { requiresAuth: true } },
     { path: "/quality/requirements", name: "req-metrics", component: ReqMetricsView, meta: { requiresAuth: true } },
-    { path: "/admin/llm-traces", name: "llm-traces", component: LlmTraceView, meta: { requiresAuth: true } },
+    { path: "/admin/metrics", name: "admin-metrics", component: MetricsAdmin, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: "/admin/metrics/:code", name: "metric-detail", component: MetricDetail, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: "/admin/llm-traces", name: "llm-traces", component: LlmTraceView, meta: { requiresAuth: true, requiresAdmin: true } },
   ],
 });
+
+function getRole(): string {
+  const token = localStorage.getItem("token");
+  if (!token) return "";
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.role_code || "";
+  } catch { return ""; }
+}
 
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem("token");
   if (to.meta.requiresAuth && !token) {
     next({ name: "login" });
+  } else if (to.meta.requiresAdmin && getRole() !== "admin") {
+    next({ name: "chat" });
   } else if (to.name === "login" && token) {
     next({ name: "chat" });
   } else {

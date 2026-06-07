@@ -704,6 +704,84 @@ button {
   margin-bottom: 0 !important;
 }
 
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #eaecf0;
+  text-align: left;
+  font-size: 14px;
+}
+
+.admin-table th {
+  color: #667085;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.btn-sm {
+  padding: 4px 12px;
+  border: 1px solid #176b87;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #176b87;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-sm:hover {
+  background: #e7f0f3;
+}
+
+.metric-detail-page {
+  display: grid;
+  gap: 20px;
+}
+
+.detail-section {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.detail-section h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.detail-section dl {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.detail-section dt {
+  color: #667085;
+  font-size: 13px;
+}
+
+.detail-section dd {
+  margin: 0;
+  font-size: 14px;
+}
+
+.status-active {
+  color: #067647;
+  font-weight: 600;
+}
+
+.status-draft {
+  color: #946200;
+  font-weight: 600;
+}
+
 .login-hint {
   margin-top: 18px !important;
   color: #98a2b3 !important;
