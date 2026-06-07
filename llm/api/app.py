@@ -9,6 +9,7 @@ from llm.api.dashboard import router as dashboard_router
 from llm.api.llm_trace import router as llm_trace_router
 from llm.api.middleware import AdminAuthMiddleware
 from llm.api.rate_limit import RateLimitMiddleware
+from llm.api.report import router as report_router
 from llm.config import FRONTEND_ORIGIN
 from llm.schemas.error import ErrorCode, ErrorResponse
 
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog_router)
     app.include_router(chat_router)
     app.include_router(dashboard_router)
+    app.include_router(report_router)
     app.include_router(llm_trace_router)
 
     return app

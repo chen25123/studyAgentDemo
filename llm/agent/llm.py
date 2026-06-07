@@ -13,6 +13,7 @@ from llm.repositories.llm_trace_repository import LlmTraceRepository
 from llm.tools.metric_meta_tools import list_available_metrics
 from llm.tools.metric_query_tools import query_metric
 from llm.tools.org_metric_tools import query_org_structure
+from llm.tools.report_tools import generate_weekly_report
 from llm.tools.time_tool import get_now_date
 
 DEVFLOW_SYSTEM_PROMPT = (
@@ -21,8 +22,9 @@ DEVFLOW_SYSTEM_PROMPT = (
     "工具使用优先级：\n"
     "1. 用户问任何业务指标（关闭率/完成率/统计数/X率）-> 只用 query_metric\n"
     "2. 不清楚有哪些可用指标 -> 先用 list_available_metrics 查看\n"
-    "3. 查组织架构/部门树 -> 用 query_org_structure\n"
-    "4. 需要当前日期 -> 用 get_now_date\n"
+    "3. 用户要求生成周报/质量报告 -> 用 generate_weekly_report\n"
+    "4. 查组织架构/部门树 -> 用 query_org_structure\n"
+    "5. 需要当前日期 -> 用 get_now_date\n"
     "\n"
     "重要：所有的指标类查询（Bug 数、关闭率、延期率等）都统一走 query_metric，\n"
     "不要尝试用其他工具替代。如果 query_metric 不支持，告知用户当前暂不支持该指标。\n"
@@ -49,6 +51,7 @@ class DevFlowAgent:
             tools=[
                 query_metric,
                 list_available_metrics,
+                generate_weekly_report,
                 get_now_date,
                 query_org_structure,
             ],
