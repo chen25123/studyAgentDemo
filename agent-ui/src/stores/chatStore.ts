@@ -50,12 +50,12 @@ export const useChatStore = defineStore("chat", () => {
     },
   ]);
 
-  const suggestions = [
+  const suggestions = ref([
     "最近一个月创建了多少 Bug？其中多少已关闭？",
     "分析延期需求最多的模块",
     "找出重开次数高的 Bug",
     "生成一份研发质量周报",
-  ];
+  ]);
 
   const canSend = computed(() => input.value.trim().length > 0 && !loading.value);
 

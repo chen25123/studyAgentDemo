@@ -32,6 +32,7 @@ Thumbs.db
 # 前端
 agent-ui/node_modules/
 agent-ui/dist/
+agent-ui/.env
 
 # 我的记忆文件（非项目代码）
 memory/

@@ -323,7 +323,91 @@ class MetricQueryGraph:
         return "execute_metric"
 
     # ============================================================
-    # Entry
+    # Streaming Entry
+    # ============================================================
+
+    async def astream(self, session_id: str, message: str):
+        """流式执行，每完成一个节点 yield SSE 事件。"""
+
+        initial: MetricAgentState = {
+            "messages": [HumanMessage(content=message)],
+            "session_id": session_id,
+            "intent": "",
+            "metric_codes": [],
+            "time_range": None,
+            "filters": {},
+            "group_by": [],
+            "query_plan": None,
+            "validation_errors": [],
+            "metric_results": None,
+            "compiled_sql": "",
+            "final_answer": "",
+        }
+
+        stages = [
+            ("classify_intent", "识别意图"),
+            ("resolve_time", "解析时间范围"),
+            ("match_metric", "匹配指标"),
+            ("build_query_plan", "生成查询计划"),
+            ("validate_plan", "校验查询计划"),
+            ("execute_metric", "执行查询"),
+            ("compose_answer", "生成回答"),
+        ]
+
+        current_state = initial
+        for node_name, label in stages:
+            yield self._sse("node_start", {"node": node_name, "label": label})
+
+            if node_name == "classify_intent":
+                current_state.update(await self._classify_intent(current_state))
+                if current_state["intent"] == "general_chat":
+                    current_state.update(await self._compose_answer(current_state))
+                    yield self._sse("message_delta", {"content": current_state["final_answer"]})
+                    yield self._sse("final", {})
+                    return
+
+            elif node_name == "resolve_time":
+                current_state.update(await self._resolve_time(current_state))
+
+            elif node_name == "match_metric":
+                current_state.update(await self._match_metric(current_state))
+
+            elif node_name == "build_query_plan":
+                current_state.update(await self._build_query_plan(current_state))
+
+            elif node_name == "validate_plan":
+                current_state.update(await self._validate_plan(current_state))
+                if current_state.get("validation_errors"):
+                    current_state.update(await self._compose_answer(current_state))
+                    yield self._sse("message_delta", {"content": current_state["final_answer"]})
+                    yield self._sse("final", {})
+                    return
+
+            elif node_name == "execute_metric":
+                current_state.update(await self._execute_metric(current_state))
+                if current_state.get("metric_results"):
+                    yield self._sse(
+                        "tool_result",
+                        {"summary": f"查到 {len(current_state['metric_results'])} 条结果"},
+                    )
+
+            elif node_name == "compose_answer":
+                current_state.update(await self._compose_answer(current_state))
+                yield self._sse("message_delta", {"content": current_state["final_answer"]})
+                yield self._sse("final", {})
+
+    # ============================================================
+    # Utils
+    # ============================================================
+
+    @staticmethod
+    def _sse(event_type: str, data: dict) -> str:
+        import json as _json
+        payload = _json.dumps({"type": event_type, **data}, ensure_ascii=False)
+        return f"data: {payload}\n\n"
+
+    # ============================================================
+    # Entry (Non-streaming)
     # ============================================================
 
     async def arun(self, session_id: str, message: str) -> str:

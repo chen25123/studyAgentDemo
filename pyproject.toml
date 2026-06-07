@@ -8,3 +8,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "llm: tests that require LLM API access (skip in CI)",
+]
+addopts = "-m \"not llm\" --ignore=tests/test_agent_eval.py"

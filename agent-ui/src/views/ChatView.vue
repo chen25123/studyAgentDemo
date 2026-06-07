@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 
 import { fetchDashboardSummary } from "../api/dashboard";
+import { http } from "../api/http";
 import MessageInput from "../components/chat/MessageInput.vue";
 import MessageList from "../components/chat/MessageList.vue";
 import { useChatStore } from "../stores/chatStore";
@@ -16,7 +17,19 @@ const dashboardError = ref("");
 
 onMounted(() => {
   loadDashboard();
+  loadSuggestions();
 });
+
+async function loadSuggestions(): Promise<void> {
+  try {
+    const { data } = await http.get<string[]>("/suggestions");
+    if (data.length > 0) {
+      chatStore.suggestions = data;
+    }
+  } catch {
+    // keep defaults
+  }
+}
 
 async function loadDashboard(): Promise<void> {
   dashboardLoading.value = true;

@@ -2,10 +2,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from llm.api.catalog import router as catalog_router
 from llm.api.chat import router as chat_router
 from llm.api.dashboard import router as dashboard_router
 from llm.api.llm_trace import router as llm_trace_router
 from llm.api.middleware import AdminAuthMiddleware
+from llm.api.rate_limit import RateLimitMiddleware
 from llm.config import FRONTEND_ORIGIN
 from llm.schemas.error import ErrorCode, ErrorResponse
 
@@ -21,6 +23,9 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
+
+    # 限流
+    app.add_middleware(RateLimitMiddleware, limit=10, window=60.0)
 
     # Admin 鉴权
     app.add_middleware(AdminAuthMiddleware)
@@ -41,6 +46,7 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    app.include_router(catalog_router)
     app.include_router(chat_router)
     app.include_router(dashboard_router)
     app.include_router(llm_trace_router)

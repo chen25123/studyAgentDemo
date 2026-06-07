@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     db_host: str = Field(default="127.0.0.1", alias="DB_HOST")
     db_port: int = Field(default=3306, alias="DB_PORT")
     db_user: str = Field(default="root", alias="DB_USER")
-    db_password: str = Field(default="Root@123456", alias="DB_PASSWORD")
-    db_name: str = Field(default="agent_workflow", alias="DB_NAME")
+    db_password: str = Field(default="", alias="DB_PASSWORD")
+    db_name: str = Field(default="", alias="DB_NAME")
 
     @property
     def database_url(self) -> str:
@@ -52,10 +52,19 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
+    missing: list[str] = []
+
     if not settings.llm_api_key and not settings.ds_api_key:
+        missing.append("LLM_API_KEY or DS_API_KEY")
+
+    if not settings.db_password:
+        missing.append("DB_PASSWORD")
+    if not settings.db_name:
+        missing.append("DB_NAME")
+
+    if missing:
         raise RuntimeError(
-            "Missing required env variable: LLM_API_KEY or DS_API_KEY "
-            "(at least one must be configured)"
+            f"Missing required env variables: {', '.join(missing)}"
         )
     return settings
 

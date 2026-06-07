@@ -1,0 +1,124 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "question": "最近一个月创建了多少 Bug？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_count"]
+    },
+    {
+      "id": 2,
+      "question": "本月 Bug 关闭率是多少？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_close_rate"]
+    },
+    {
+      "id": 3,
+      "question": "研发一部上个月 Bug 未关闭率",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_open_rate"]
+    },
+    {
+      "id": 4,
+      "question": "Bug 重开率多高？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_reopen_rate"]
+    },
+    {
+      "id": 5,
+      "question": "按模块统计本月 Bug 关闭率",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_close_rate"]
+    },
+    {
+      "id": 6,
+      "question": "需求延期率是多少？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["requirement_delay_rate"]
+    },
+    {
+      "id": 7,
+      "question": "Bug 数量最多的三个模块是哪些？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_count"]
+    },
+    {
+      "id": 8,
+      "question": "你叫什么名字？",
+      "expected_intent": "general_chat",
+      "expected_metric_codes": []
+    },
+    {
+      "id": 9,
+      "question": "你好",
+      "expected_intent": "general_chat",
+      "expected_metric_codes": []
+    },
+    {
+      "id": 10,
+      "question": "5 月份的测试部 Bug 关闭率",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_close_rate"]
+    },
+    {
+      "id": 11,
+      "question": "过去 30 天有多少需求延期了？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["requirement_delay_rate"]
+    },
+    {
+      "id": 12,
+      "question": "查看所有可用指标",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": []
+    },
+    {
+      "id": 13,
+      "question": "帮我统计一下近三个月 created 的 Bug 数量",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_count"]
+    },
+    {
+      "id": 14,
+      "question": "交易模块的 Bug 严重吗？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_count"]
+    },
+    {
+      "id": 15,
+      "question": "最近一周关闭了多少个 Bug？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_close_rate"]
+    },
+    {
+      "id": 16,
+      "question": "今天天气怎么样？",
+      "expected_intent": "general_chat",
+      "expected_metric_codes": []
+    },
+    {
+      "id": 17,
+      "question": "订单模块的 Bug 重开率高不高？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_reopen_rate"]
+    },
+    {
+      "id": 18,
+      "question": "上个季度的需求完成率怎么样？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["requirement_delay_rate"]
+    },
+    {
+      "id": 19,
+      "question": "当前还有多少未关闭的 Bug？",
+      "expected_intent": "metric_query",
+      "expected_metric_codes": ["bug_open_rate"]
+    },
+    {
+      "id": 20,
+      "question": "谢谢你的帮助",
+      "expected_intent": "general_chat",
+      "expected_metric_codes": []
+    }
+  ]
+}
