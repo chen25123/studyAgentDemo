@@ -15,6 +15,7 @@ from llm.tools.metric_query_tools import query_metric
 from llm.tools.org_metric_tools import query_org_structure
 from llm.tools.report_tools import generate_weekly_report
 from llm.tools.time_tool import get_now_date
+from llm.tools.workflow_tools import update_bug_status
 
 DEVFLOW_SYSTEM_PROMPT = (
     "你是 DevFlow Agent，一个面向研发流程数据分析的 AI Agent。\n"
@@ -54,6 +55,7 @@ class DevFlowAgent:
                 generate_weekly_report,
                 get_now_date,
                 query_org_structure,
+                update_bug_status,
             ],
             system_prompt=DEVFLOW_SYSTEM_PROMPT,
         )
