@@ -91,6 +91,27 @@ class TestChatStream:
             assert "final" in r.text
 
 
+class TestSuggestions:
+    def test_suggestions_ok(self):
+        r = client.get("/api/suggestions")
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+        assert len(r.json()) > 0
+
+
+class TestMetricValue:
+    def test_bug_count_value(self):
+        r = client.get("/api/metrics/bug_count/value")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["metric_code"] == "bug_count"
+        assert data["value"] is not None
+
+    def test_metric_value_not_found(self):
+        r = client.get("/api/metrics/nonexistent/value")
+        assert r.status_code == 404
+
+
 class TestAdminAuth:
     def test_no_token_returns_403(self):
         r = client.get("/api/admin/llm-traces")
