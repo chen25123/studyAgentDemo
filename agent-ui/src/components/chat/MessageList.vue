@@ -28,7 +28,12 @@ defineProps<{
         <span>Agent</span>
         <time>{{ nowTime() }}</time>
       </div>
-      <p class="message-text">正在分析...</p>
+      <p class="message-text">
+        正在分析
+        <span class="loading-dot">.</span>
+        <span class="loading-dot">.</span>
+        <span class="loading-dot">.</span>
+      </p>
     </article>
   </div>
 </template>

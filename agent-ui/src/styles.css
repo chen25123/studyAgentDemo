@@ -117,6 +117,11 @@ button {
   color: #667085;
 }
 
+.nav-item-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .source-panel {
   display: grid;
   gap: 14px;
@@ -373,6 +378,18 @@ button {
   white-space: pre-wrap;
 }
 
+.loading-dot {
+  animation: dot-fade 1.4s infinite;
+}
+
+.loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-fade {
+  0%, 80%, 100% { opacity: 0.2; }
+  40% { opacity: 1; }
+}
+
 .suggestions {
   display: flex;
   gap: 10px;
@@ -502,6 +519,29 @@ button {
 .risk-低 {
   background: #dcfae6;
   color: #067647;
+}
+
+.dashboard-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fee4e2;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.dashboard-loading {
+  grid-column: span 2;
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  text-align: center;
+}
+
+.risk-empty {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
 }
 
 @media (max-width: 1100px) {

@@ -1,35 +1,39 @@
 <script setup lang="ts">
+import { onMounted, ref } from "vue";
+
+import { fetchDashboardSummary } from "../api/dashboard";
 import MessageInput from "../components/chat/MessageInput.vue";
 import MessageList from "../components/chat/MessageList.vue";
 import { useChatStore } from "../stores/chatStore";
-import type { Metric, RiskItem } from "../types/dashboard";
+import type { MetricCard, RiskItem } from "../types/dashboard";
 
 const chatStore = useChatStore();
 
-const metrics: Metric[] = [
-  { label: "近月创建 Bug", value: "26,794", trend: "关闭率 14.29%" },
-  { label: "需求总量", value: "20,000", trend: "已上线 2,222" },
-  { label: "重开 Bug", value: "11,429", trend: "需重点复盘" },
-  { label: "延期需求", value: "11,110", trend: "交付压力偏高" },
-];
+const metrics = ref<MetricCard[]>([]);
+const risks = ref<RiskItem[]>([]);
+const dashboardLoading = ref(false);
+const dashboardError = ref("");
 
-const risks: RiskItem[] = [
-  {
-    title: "需求延期偏多",
-    detail: "超过半数需求实际完成时间晚于计划时间。",
-    level: "高",
-  },
-  {
-    title: "重开 Bug 需要归因",
-    detail: "重开记录集中时会影响测试回归效率。",
-    level: "中",
-  },
-  {
-    title: "未关联需求 Bug",
-    detail: "存在 8,000 条 Bug 未关联需求，建议补齐来源。",
-    level: "中",
-  },
-];
+onMounted(() => {
+  loadDashboard();
+});
+
+async function loadDashboard(): Promise<void> {
+  dashboardLoading.value = true;
+  dashboardError.value = "";
+  try {
+    const data = await fetchDashboardSummary();
+    metrics.value = data.metrics;
+    risks.value = data.risks;
+  } catch {
+    dashboardError.value = "指标数据加载失败";
+    // 兜底：显示空数据而非假数据
+    metrics.value = [];
+    risks.value = [];
+  } finally {
+    dashboardLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -59,16 +63,26 @@ const risks: RiskItem[] = [
   </section>
 
   <aside class="insights" aria-label="指标和风险">
+    <p v-if="dashboardError" class="dashboard-error">{{ dashboardError }}</p>
+
     <section class="metric-grid">
-      <article v-for="metric in metrics" :key="metric.label" class="metric-card">
+      <article
+        v-for="metric in metrics"
+        :key="metric.label"
+        class="metric-card"
+      >
         <span>{{ metric.label }}</span>
         <strong>{{ metric.value }}</strong>
         <p>{{ metric.trend }}</p>
       </article>
+      <p v-if="dashboardLoading" class="dashboard-loading">加载指标中...</p>
     </section>
 
     <section class="risk-panel">
       <h2>风险提示</h2>
+      <p v-if="risks.length === 0 && !dashboardLoading" class="risk-empty">
+        暂无风险数据
+      </p>
       <article v-for="risk in risks" :key="risk.title" class="risk-item">
         <div>
           <h3>{{ risk.title }}</h3>

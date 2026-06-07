@@ -27,7 +27,8 @@ def query_user_metrics(query: UserMetricQuery) -> str:
     示例：
     - "研发一部多少人" → metrics=["user_count"], filters={"department":"研发一部"}
     - "组织架构" → metrics=["user_count"], group_by=["department"]
-    - "张三在哪" → metrics=["user_count"], filters={"display_name":"张三"}, group_by=["department","job_title"]
+    - "张三在哪" → metrics=["user_count"], filters={"display_name":"张三"},
+      group_by=["department","job_title"]
     """
     try:
         rows = _repo.query_metrics(query)

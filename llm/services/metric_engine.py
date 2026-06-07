@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from llm.repositories.db import get_engine
 from llm.repositories.metric_layer_repository import MetricLayerRepository
-from llm.schemas.metric_query import MetricQuery, MetricResultRow, TimeRange
+from llm.schemas.metric_query import MetricQuery, MetricResultRow
 
 
 class MetricEngineError(ValueError):
@@ -22,7 +22,12 @@ class MetricEngine:
     def __init__(self) -> None:
         self._repo = MetricLayerRepository()
 
-    def execute(self, query: MetricQuery) -> tuple[list[MetricResultRow], str]:
+    def execute(
+        self,
+        query: MetricQuery,
+        trace_id: str = "",
+        session_id: str = "",
+    ) -> tuple[list[MetricResultRow], str]:
         """执行 MetricQuery，返回结构化结果 + 编译 SQL（用于审计）。"""
         started_at = time.perf_counter()
 
@@ -36,7 +41,17 @@ class MetricEngine:
         rows = self._execute_sql(compiled["sql"], compiled["params"])
         duration_ms = int((time.perf_counter() - started_at) * 1000)
 
-        # 4. 组装结果
+        # 4. 记录查询日志
+        self._repo.save_query_log(
+            trace_id=trace_id,
+            session_id=session_id,
+            query_plan=query.model_dump(mode="json"),
+            compiled_sql=compiled["sql"],
+            duration_ms=duration_ms,
+            status="success",
+        )
+
+        # 5. 组装结果
         results = self._assemble_results(rows, query, metrics_map, compiled)
 
         return results, compiled["sql"]
@@ -157,11 +172,26 @@ class MetricEngine:
             meas_filter = ""
             if fc and fc.get("filters"):
                 parts = []
+                op_map = {
+                    "eq": "=", "neq": "!=", "gt": ">",
+                    "lt": "<", "gte": ">=", "lte": "<=",
+                    "not_in": "NOT IN", "in": "IN",
+                }
                 for f in fc["filters"]:
-                    op = "=" if f.get("operator") == "eq" else f.get("operator", "=")
-                    # 把 full table name 替换成子查询别名
+                    sql_op = op_map.get(f.get("operator", "eq"), "=")
                     col = f["field"].replace(f"{base_table}.", "b.")
-                    parts.append(f"{col} {op} '{f['value']}'")
+                    val = f.get("value")
+                    if isinstance(val, list):
+                        quoted = ", ".join(
+                            f"'{v}'" if v != "NOW()" else v for v in val
+                        )
+                        parts.append(f"{col} {sql_op} ({quoted})")
+                    elif isinstance(val, str) and val.upper() == "NOW()":
+                        parts.append(f"{col} {sql_op} NOW()")
+                    elif isinstance(val, str) and val.isdigit():
+                        parts.append(f"{col} {sql_op} {val}")
+                    else:
+                        parts.append(f"{col} {sql_op} '{val}'")
                 meas_filter = " AND ".join(parts)
 
             if agg.upper() == "COUNT":

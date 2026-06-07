@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     )
     ds_model: str = Field(default="deepseek-v4-pro", alias="DS_MODEL")
 
+    admin_token: str = Field(default="", alias="ADMIN_TOKEN")
     frontend_origin: str = Field(default="http://127.0.0.1:5173", alias="FRONTEND_ORIGIN")
 
     db_host: str = Field(default="127.0.0.1", alias="DB_HOST")
@@ -65,14 +66,5 @@ LLM_API_KEY = settings.llm_api_key
 LLM_BASE_URL = settings.llm_base_url
 LLM_MODEL = settings.llm_model
 
-DS_API_KEY = settings.ds_api_key
-DS_BASE_URL = settings.ds_base_url
-DS_MODEL = settings.ds_model
-
+ADMIN_TOKEN = settings.admin_token
 FRONTEND_ORIGIN = settings.frontend_origin
-
-DB_HOST = settings.db_host
-DB_PORT = settings.db_port
-DB_USER = settings.db_user
-DB_PASSWORD = settings.db_password
-DB_NAME = settings.db_name

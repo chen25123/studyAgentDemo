@@ -10,6 +10,7 @@ from llm.domain.bug_metrics import (
 from llm.repositories.db import get_engine
 from llm.schemas.bug_metric import BugMetricQuery, BugMetricRow
 
+
 class BugMetricRepository:
     """执行bug指标查询"""
 
@@ -86,7 +87,12 @@ class BugMetricRepository:
         if unknown_group_by:
             raise ValueError(f"不支持的bug分组维度： {sorted(unknown_group_by)}")
         
-    def _build_sql(self, select_parts: list[str], where_parts: list[str], group_by_parts: list[str]) -> str:
+    def _build_sql(
+        self,
+        select_parts: list[str],
+        where_parts: list[str],
+        group_by_parts: list[str],
+    ) -> str:
         sql = [
             "SELECT",
             ",".join(select_parts),

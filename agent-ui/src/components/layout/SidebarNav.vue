@@ -28,9 +28,30 @@ function isActive(name: string): boolean {
       >
         对话分析
       </button>
-      <button class="nav-item" type="button">需求巡检</button>
-      <button class="nav-item" type="button">Bug 质量</button>
-      <button class="nav-item" type="button">报告生成</button>
+      <button
+        class="nav-item nav-item-disabled"
+        type="button"
+        disabled
+        title="功能开发中"
+      >
+        需求巡检
+      </button>
+      <button
+        class="nav-item nav-item-disabled"
+        type="button"
+        disabled
+        title="功能开发中"
+      >
+        Bug 质量
+      </button>
+      <button
+        class="nav-item nav-item-disabled"
+        type="button"
+        disabled
+        title="功能开发中"
+      >
+        报告生成
+      </button>
       <button
         class="nav-item nav-item-muted"
         :class="{ active: isActive('llm-traces') }"

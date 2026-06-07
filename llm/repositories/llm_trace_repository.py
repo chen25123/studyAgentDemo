@@ -225,3 +225,31 @@ class LlmTraceRepository:
         with get_engine().connect() as conn:
             rows = conn.execute(sql, {"trace_id": trace_id}).mappings().all()
             return [dict(row) for row in rows]
+
+    def get_recent_chat_messages(
+        self, session_id: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """读取某 session 最近的 chat 类型消息，用于恢复会话上下文。
+
+        只取 role 为 human/ai 的 message_type='chat' 记录，
+        按 message_order 倒序取最近 N 条，再反转回正序。
+        """
+        sql = text(
+            """
+            SELECT role, content
+            FROM llm_messages
+            WHERE session_id = :session_id
+              AND message_type = 'chat'
+              AND role IN ('human', 'ai')
+            ORDER BY id DESC
+            LIMIT :limit
+            """
+        )
+        with get_engine().connect() as conn:
+            rows = conn.execute(
+                sql, {"session_id": session_id, "limit": limit}
+            ).mappings().all()
+            # MySQL 返回的是倒序，反转回正序
+            result = [dict(row) for row in rows]
+            result.reverse()
+            return result

@@ -1,6 +1,7 @@
-from datetime import date, datetime
+from datetime import date
 
 from pydantic import BaseModel, Field
+
 
 class TimeRange(BaseModel):
     """统计时间范围。"""
