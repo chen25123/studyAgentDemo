@@ -5,6 +5,7 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   time: string;
+  chart?: string;  // base64 PNG chart image
 }
 
 export interface ChatResponse {

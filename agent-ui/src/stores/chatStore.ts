@@ -118,6 +118,12 @@ export const useChatStore = defineStore("chat", () => {
             case "error":
               msg.content = `错误：${event.message}`;
               break;
+            case "chart":
+              // 后端生成的图表（base64 PNG）
+              if (event.image) {
+                msg.chart = event.image;
+              }
+              break;
             case "final":
               // 流结束，内容已完整
               break;

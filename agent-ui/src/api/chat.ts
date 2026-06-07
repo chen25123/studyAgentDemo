@@ -13,11 +13,12 @@ export async function sendChatMessage(
 }
 
 export interface SseEvent {
-  type: "thinking" | "tool_start" | "tool_result" | "message_delta" | "final" | "error";
+  type: "thinking" | "tool_start" | "tool_result" | "message_delta" | "chart" | "final" | "error";
   content?: string;
   tool?: string;
   message?: string;
   summary?: string;
+  image?: string;
 }
 
 export async function sendChatMessageStream(

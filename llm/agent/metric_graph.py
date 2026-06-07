@@ -265,12 +265,16 @@ class MetricQueryGraph:
 
         if intent == "general_chat":
             return {
-                "final_answer": "你好！我是 DevFlow Agent。有什么研发数据问题可以帮你？"
+                "final_answer": "你好！我是 DevFlow Agent。有什么研发数据问题可以帮你？",
+                "chart_b64": "",
             }
 
         errors = state.get("validation_errors", [])
         if errors:
-            return {"final_answer": f"查询未能执行：{'；'.join(errors)}"}
+            return {
+                "final_answer": f"查询未能执行：{'；'.join(errors)}",
+                "chart_b64": "",
+            }
 
         results = state.get("metric_results") or []
         if not results:
@@ -279,8 +283,12 @@ class MetricQueryGraph:
                     "未能查到相关指标数据。试试：\n"
                     "- 换个时间范围\n"
                     "- 确认指标名称是否正确\n"
-                )
+                ),
+                "chart_b64": "",
             }
+
+        # 生成图表
+        chart_b64 = self._build_chart(results)
 
         lines = ["指标查询结果："]
         for r in results:
@@ -306,7 +314,45 @@ class MetricQueryGraph:
                 seen.add(code)
                 lines.append(f"- {code}：{desc}")
 
-        return {"final_answer": "\n".join(lines)}
+        return {"final_answer": "\n".join(lines), "chart_b64": chart_b64}
+
+    # ============================================================
+    # Chart Builder
+    # ============================================================
+
+    @staticmethod
+    def _build_chart(results: list[dict]) -> str:
+        from llm.services.chart_service import ChartService
+
+        svc = ChartService()
+        try:
+            # 有 group_by → 柱状图
+            dims = results[0].get("dimensions", {}) if results else {}
+            if dims and len(results) > 1:
+                dim_key = next(iter(dims))
+                labels = [r["dimensions"].get(dim_key, "") for r in results]
+                labels = [str(v) if v else "未知" for v in labels]
+                values = [r.get("value") or 0 for r in results]
+                name = results[0].get("metric_name", "指标")
+                unit = results[0].get("unit", "")
+                return svc.render_bar_chart(
+                    labels=labels,
+                    values=values,
+                    title=f"{name} 按{dim_key}分布",
+                    ylabel=f"值（{unit}）" if unit else "",
+                )
+
+            # 无 group_by → 指标卡
+            r = results[0]
+            sub = {k: v for k, v in r.get("measures", {}).items() if v is not None}
+            return svc.render_metric_card(
+                metric_name=r.get("metric_name", "指标"),
+                value=r.get("value") or 0,
+                unit=r.get("unit", "%"),
+                sub_metrics=sub if sub else None,
+            )
+        except Exception:
+            return ""
 
     # ============================================================
     # Routing
@@ -394,6 +440,9 @@ class MetricQueryGraph:
             elif node_name == "compose_answer":
                 current_state.update(await self._compose_answer(current_state))
                 yield self._sse("message_delta", {"content": current_state["final_answer"]})
+                chart = current_state.get("chart_b64", "")
+                if chart:
+                    yield self._sse("chart", {"image": chart})
                 yield self._sse("final", {})
 
     # ============================================================

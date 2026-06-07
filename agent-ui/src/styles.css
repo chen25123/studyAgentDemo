@@ -378,6 +378,14 @@ button {
   white-space: pre-wrap;
 }
 
+.message-chart {
+  display: block;
+  max-width: 100%;
+  margin-top: 12px;
+  border-radius: 8px;
+  border: 1px solid #eaecf0;
+}
+
 .loading-dot {
   animation: dot-fade 1.4s infinite;
 }
@@ -536,6 +544,80 @@ button {
   color: #667085;
   font-size: 13px;
   text-align: center;
+}
+
+.metric-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.metric-card-detail {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.metric-card-detail h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.metric-card-detail code {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f0f4f5;
+  color: #176b87;
+  font-size: 12px;
+}
+
+.metric-card-detail p {
+  margin: 0 0 10px;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.metric-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #e7f0f3;
+  color: #0f5f79;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.metric-value {
+  margin: 8px 0;
+  color: #176b87;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.metric-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.metric-sub span {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f3f6f8;
+}
+
+.empty-hint {
+  margin-top: 40px;
+  color: #667085;
+  text-align: center;
+  font-size: 14px;
 }
 
 .risk-empty {

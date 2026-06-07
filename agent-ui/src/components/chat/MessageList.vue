@@ -21,6 +21,12 @@ defineProps<{
         <time>{{ message.time }}</time>
       </div>
       <p class="message-text">{{ message.content }}</p>
+      <img
+        v-if="message.chart"
+        :src="'data:image/png;base64,' + message.chart"
+        class="message-chart"
+        alt="数据图表"
+      />
     </article>
 
     <article v-if="loading" class="message message-agent">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   canSend: boolean;
   loading: boolean;
   suggestions: string[];
@@ -10,6 +10,15 @@ const input = defineModel<string>({ required: true });
 const emit = defineEmits<{
   send: [text?: string];
 }>();
+
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    if (props.canSend) {
+      emit("send");
+    }
+  }
+}
 </script>
 
 <template>
@@ -29,7 +38,8 @@ const emit = defineEmits<{
     <textarea
       v-model="input"
       rows="2"
-      placeholder="输入问题，例如：最近一个月创建的 Bug 里有多少已经关闭？"
+      placeholder="输入问题，Enter 发送，Shift+Enter 换行"
+      @keydown="onKeydown"
     />
     <button type="submit" :disabled="!canSend">发送</button>
   </form>

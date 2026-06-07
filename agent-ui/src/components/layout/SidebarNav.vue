@@ -29,26 +29,27 @@ function isActive(name: string): boolean {
         对话分析
       </button>
       <button
-        class="nav-item nav-item-disabled"
+        class="nav-item"
+        :class="{ active: isActive('req-metrics') }"
         type="button"
-        disabled
-        title="功能开发中"
+        @click="router.push({ name: 'req-metrics' })"
       >
         需求巡检
       </button>
       <button
-        class="nav-item nav-item-disabled"
+        class="nav-item"
+        :class="{ active: isActive('bug-metrics') }"
         type="button"
-        disabled
-        title="功能开发中"
+        @click="router.push({ name: 'bug-metrics' })"
       >
         Bug 质量
       </button>
       <button
-        class="nav-item nav-item-disabled"
+        class="nav-item"
+        :class="{ active: isActive('chat') }"
         type="button"
-        disabled
-        title="功能开发中"
+        @click="router.push({ name: 'chat' })"
+        title="在对话中生成报告"
       >
         报告生成
       </button>

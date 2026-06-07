@@ -125,6 +125,10 @@ class MetricEngine:
             if m["formula_type"] == "ratio":
                 all_measures[formula["numerator"]] = {}
                 all_measures[formula["denominator"]] = {}
+            elif m["formula_type"] == "count":
+                meas_code = formula.get("measure", "")
+                if meas_code:
+                    all_measures[meas_code] = {}
         if all_measures:
             loaded = self._repo.get_measures(list(all_measures))
             all_measures.update(loaded)
@@ -275,6 +279,9 @@ class MetricEngine:
                     outer_select.append(
                         f"sub.{num} / NULLIF(sub.{den}, 0) AS {mc}"
                     )
+            elif m["formula_type"] == "count":
+                meas_code = formula.get("measure", "")
+                outer_select.append(f"sub.{meas_code} AS {mc}")
             else:
                 outer_select.append(f"sub.{mc} AS {mc}")
 
@@ -333,6 +340,12 @@ class MetricEngine:
                     den = formula["denominator"]
                     measure_values[num] = row.get(f"_{num}")
                     measure_values[den] = row.get(f"_{den}")
+                elif m["formula_type"] == "count":
+                    meas_code = formula.get("measure", "")
+                    if meas_code:
+                        measure_values[meas_code] = row.get(f"_{meas_code}")
+                        # value 就是 measure 的值
+                        value = row.get(f"_{meas_code}")
 
                 results.append(
                     MetricResultRow(

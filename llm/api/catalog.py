@@ -45,6 +45,46 @@ def list_dimensions(entity_code: str):
     return dims
 
 
+@router.get("/metrics/{metric_code}/value")
+def get_metric_value(metric_code: str):
+    """查询某个指标的当月数值。"""
+    from datetime import date
+
+    from llm.schemas.metric_query import MetricQuery, TimeRange
+    from llm.services.metric_engine import MetricEngine, MetricEngineError
+
+    metric = _repo.get_active_metric(metric_code)
+    if metric is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"指标 {metric_code} 不存在")
+
+    engine = MetricEngine()
+    month_start = date.today().replace(day=1)
+    try:
+        results, sql = engine.execute(
+            MetricQuery(
+                metric_codes=[metric_code],
+                time_range=TimeRange(start_date=month_start, end_date=date.today()),
+                filters={},
+                group_by=[],
+            )
+        )
+        if results:
+            r = results[0]
+            return {
+                "metric_code": r.metric_code,
+                "metric_name": r.metric_name,
+                "value": r.value,
+                "unit": r.unit,
+                "measures": r.measures,
+                "description": r.description,
+                "period": f"{month_start.isoformat()} ~ {date.today().isoformat()}",
+            }
+    except MetricEngineError:
+        pass
+    return {"metric_code": metric_code, "value": None}
+
+
 @router.get("/suggestions")
 def get_suggestions():
     """返回基于当前指标的动态建议问题列表。"""
