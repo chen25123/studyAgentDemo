@@ -66,6 +66,7 @@ class MetricQueryGraph:
         builder.add_node("build_query_plan", self._build_query_plan)
         builder.add_node("validate_plan", self._validate_plan)
         builder.add_node("execute_metric", self._execute_metric)
+        builder.add_node("execute_org_query", self._execute_org_query)
         builder.add_node("compose_answer", self._compose_answer)
 
         builder.set_entry_point("classify_intent")
@@ -75,6 +76,7 @@ class MetricQueryGraph:
             self._route_after_intent,
             {
                 "resolve_time": "resolve_time",
+                "execute_org_query": "execute_org_query",
                 "compose_answer": "compose_answer",
             },
         )
@@ -91,6 +93,7 @@ class MetricQueryGraph:
             },
         )
         builder.add_edge("execute_metric", "compose_answer")
+        builder.add_edge("execute_org_query", "compose_answer")
         builder.set_finish_point("compose_answer")
 
         return builder.compile()
@@ -102,17 +105,20 @@ class MetricQueryGraph:
     async def _classify_intent(self, state: MetricAgentState) -> dict:
         last_msg = state["messages"][-1].content if state["messages"] else ""
         prompt = (
-            "判断用户意图。只回复一个词：metric_query 或 general_chat。\n"
-            "metric_query：用户想查指标（关闭率、Bug数、延期率、统计数等）。\n"
-            "general_chat：闲聊、问候、或者非数据查询的问题。\n"
+            "判断用户意图。只回复一个词：metric_query / org_query / general_chat。\n"
+            "metric_query：查指标（关闭率、Bug数、延期率、统计数等）。\n"
+            "org_query：查组织架构、部门树、团队层级、人员分布等。\n"
+            "general_chat：闲聊、问候、非数据查询。\n"
             f"\n用户问题：{last_msg}"
         )
         resp = await self.llm.ainvoke([HumanMessage(content=prompt)])
-        intent = str(resp.content).strip().lower()
-        if "metric" not in intent:
-            intent = "general_chat"
-        else:
+        raw = str(resp.content).strip().lower()
+        if "org" in raw:
+            intent = "org_query"
+        elif "metric" in raw:
             intent = "metric_query"
+        else:
+            intent = "general_chat"
         return {"intent": intent}
 
     async def _resolve_time(self, state: MetricAgentState) -> dict:
@@ -260,8 +266,62 @@ class MetricQueryGraph:
         except Exception:
             return {"metric_results": [], "compiled_sql": ""}
 
+    async def _execute_org_query(self, state: MetricAgentState) -> dict:
+        """执行组织架构查询。"""
+        from llm.repositories.org_metric_repository import OrgMetricRepository
+        from llm.schemas.org_metric import OrgMetricQuery
+
+        repo = OrgMetricRepository()
+        rows = repo.query_metrics(
+            OrgMetricQuery(metrics=["org_unit_count"], filters={}, group_by=[], list_mode=True)
+        )
+
+        if not rows:
+            return {"final_answer": "未查询到组织架构数据。"}
+
+        # 构建树形结构
+        nodes = {}
+        root_ids = []
+        for row in rows:
+            dims = row.dimensions
+            nid = int(dims["org_id"])
+            parent_id = dims.get("parent_id")
+            nodes[nid] = {
+                "id": nid,
+                "name": str(dims.get("org_name", "")),
+                "code": str(dims.get("org_code", "")),
+                "level": int(dims.get("level", 0)),
+                "parent_id": int(parent_id) if parent_id is not None else None,
+                "children": [],
+            }
+            if parent_id is None:
+                root_ids.append(nid)
+        for node in nodes.values():
+            pid = node["parent_id"]
+            if pid is not None and pid in nodes:
+                nodes[pid]["children"].append(node)
+
+        def render_tree(siblings, prefix=""):
+            result = []
+            for i, nid in enumerate(siblings):
+                node = nodes[nid]
+                is_last = i == len(siblings) - 1
+                conn = "└── " if is_last else "├── "
+                result.append(f"{prefix}{conn}{node['name']}（{node['code']}）")
+                if node["children"]:
+                    child_prefix = prefix + ("    " if is_last else "│   ")
+                    result.extend(render_tree([c["id"] for c in node["children"]], child_prefix))
+            return result
+
+        tree_lines = render_tree(root_ids)
+        return {"final_answer": "组织架构：\n" + "\n".join(tree_lines)}
+
     async def _compose_answer(self, state: MetricAgentState) -> dict:
         intent = state.get("intent", "general_chat")
+
+        if intent == "org_query":
+            answer = state.get("final_answer", "")
+            return {"final_answer": answer, "chart_b64": ""}
 
         if intent == "general_chat":
             return {
@@ -359,8 +419,11 @@ class MetricQueryGraph:
     # ============================================================
 
     def _route_after_intent(self, state: MetricAgentState) -> str:
-        if state.get("intent") == "metric_query":
+        intent = state.get("intent", "")
+        if intent == "metric_query":
             return "resolve_time"
+        if intent == "org_query":
+            return "execute_org_query"
         return "compose_answer"
 
     def _route_after_validate(self, state: MetricAgentState) -> str:
@@ -390,37 +453,43 @@ class MetricQueryGraph:
             "final_answer": "",
         }
 
-        stages = [
-            ("classify_intent", "识别意图"),
+        current_state = initial
+
+        # 1. classify intent
+        yield self._sse("node_start", {"node": "classify_intent", "label": "识别意图"})
+        current_state.update(await self._classify_intent(current_state))
+        intent = current_state.get("intent", "general_chat")
+
+        # 2. route by intent
+        if intent == "general_chat":
+            current_state.update(await self._compose_answer(current_state))
+            yield self._sse("message_delta", {"content": current_state["final_answer"]})
+            yield self._sse("final", {})
+            return
+
+        if intent == "org_query":
+            yield self._sse("node_start", {"node": "execute_org_query", "label": "查询组织架构"})
+            current_state.update(await self._execute_org_query(current_state))
+            current_state.update(await self._compose_answer(current_state))
+            yield self._sse("message_delta", {"content": current_state["final_answer"]})
+            yield self._sse("final", {})
+            return
+
+        # 3. metric pipeline
+        metric_stages = [
             ("resolve_time", "解析时间范围"),
             ("match_metric", "匹配指标"),
             ("build_query_plan", "生成查询计划"),
             ("validate_plan", "校验查询计划"),
-            ("execute_metric", "执行查询"),
-            ("compose_answer", "生成回答"),
         ]
-
-        current_state = initial
-        for node_name, label in stages:
+        for node_name, label in metric_stages:
             yield self._sse("node_start", {"node": node_name, "label": label})
-
-            if node_name == "classify_intent":
-                current_state.update(await self._classify_intent(current_state))
-                if current_state["intent"] == "general_chat":
-                    current_state.update(await self._compose_answer(current_state))
-                    yield self._sse("message_delta", {"content": current_state["final_answer"]})
-                    yield self._sse("final", {})
-                    return
-
-            elif node_name == "resolve_time":
+            if node_name == "resolve_time":
                 current_state.update(await self._resolve_time(current_state))
-
             elif node_name == "match_metric":
                 current_state.update(await self._match_metric(current_state))
-
             elif node_name == "build_query_plan":
                 current_state.update(await self._build_query_plan(current_state))
-
             elif node_name == "validate_plan":
                 current_state.update(await self._validate_plan(current_state))
                 if current_state.get("validation_errors"):
@@ -429,21 +498,20 @@ class MetricQueryGraph:
                     yield self._sse("final", {})
                     return
 
-            elif node_name == "execute_metric":
-                current_state.update(await self._execute_metric(current_state))
-                if current_state.get("metric_results"):
-                    yield self._sse(
-                        "tool_result",
-                        {"summary": f"查到 {len(current_state['metric_results'])} 条结果"},
-                    )
+        # 4. execute + compose
+        yield self._sse("node_start", {"node": "execute_metric", "label": "执行查询"})
+        current_state.update(await self._execute_metric(current_state))
+        if current_state.get("metric_results"):
+            n = len(current_state["metric_results"])
+            yield self._sse("tool_result", {"summary": f"查到 {n} 条结果"})
 
-            elif node_name == "compose_answer":
-                current_state.update(await self._compose_answer(current_state))
-                yield self._sse("message_delta", {"content": current_state["final_answer"]})
-                chart = current_state.get("chart_b64", "")
-                if chart:
-                    yield self._sse("chart", {"image": chart})
-                yield self._sse("final", {})
+        yield self._sse("node_start", {"node": "compose_answer", "label": "生成回答"})
+        current_state.update(await self._compose_answer(current_state))
+        yield self._sse("message_delta", {"content": current_state["final_answer"]})
+        chart = current_state.get("chart_b64", "")
+        if chart:
+            yield self._sse("chart", {"image": chart})
+        yield self._sse("final", {})
 
     # ============================================================
     # Utils
