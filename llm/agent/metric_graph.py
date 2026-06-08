@@ -6,6 +6,7 @@ classify_intent → resolve_time → match_metric → build_query_plan
 """
 
 import json
+import time
 from datetime import date
 from typing import Annotated, Any, TypedDict
 from uuid import uuid4
@@ -486,11 +487,44 @@ class MetricQueryGraph:
     # Streaming Entry
     # ============================================================
 
+    def _end_stream(self, state: dict, trace_id: str, started: float) -> str:
+        """写入 Trace 记录，返回 final SSE 字符串。"""
+        answer = state.get("final_answer", "")
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        try:
+            self.trace.create_conversation(
+                trace_id=trace_id, session_id=state.get("session_id", ""),
+                user_input="", model_name="qwen-plus", provider="dashscope",
+            )
+            self.trace.save_messages(
+                trace_id=trace_id, session_id=state.get("session_id", ""),
+                messages=[{
+                    "role": "ai", "content": answer,
+                    "message_type": "chat", "tool_name": None,
+                }],
+            )
+            self.trace.finish_conversation(
+                trace_id=trace_id, final_output=answer, duration_ms=duration_ms,
+            )
+        except Exception:
+            pass
+        return self._sse("final", {})
+
     async def astream(self, session_id: str, message: str):
         """流式执行，每完成一个节点 yield SSE 事件。"""
 
+        # 从 DB 恢复会话历史
+        history_rows = self.trace.get_recent_chat_messages(session_id, limit=20)
+        history_msgs = [
+            HumanMessage(content=r["content"])
+            for r in history_rows if r["role"] == "human"
+        ]
+
+        trace_id = uuid4().hex
+        started_at = time.perf_counter()
+
         initial: MetricAgentState = {
-            "messages": [HumanMessage(content=message)],
+            "messages": [*history_msgs, HumanMessage(content=message)],
             "session_id": session_id,
             "intent": "",
             "metric_codes": [],
@@ -515,7 +549,7 @@ class MetricQueryGraph:
         if intent == "general_chat":
             current_state.update(await self._compose_answer(current_state))
             yield self._sse("message_delta", {"content": current_state["final_answer"]})
-            yield self._sse("final", {})
+            yield self._end_stream(current_state, trace_id, started_at)
             return
 
         if intent == "org_query":
@@ -523,7 +557,7 @@ class MetricQueryGraph:
             current_state.update(await self._execute_org_query(current_state))
             current_state.update(await self._compose_answer(current_state))
             yield self._sse("message_delta", {"content": current_state["final_answer"]})
-            yield self._sse("final", {})
+            yield self._end_stream(current_state, trace_id, started_at)
             return
 
         if intent == "user_query":
@@ -531,7 +565,7 @@ class MetricQueryGraph:
             current_state.update(await self._execute_user_query(current_state))
             current_state.update(await self._compose_answer(current_state))
             yield self._sse("message_delta", {"content": current_state["final_answer"]})
-            yield self._sse("final", {})
+            yield self._end_stream(current_state, trace_id, started_at)
             return
 
         # 3. metric pipeline
