@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "../../stores/authStore";
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 
 function isActive(name: string): boolean {
   return route.name === name;
@@ -54,6 +56,7 @@ function isActive(name: string): boolean {
         报告生成
       </button>
       <button
+        v-if="auth.isAdmin()"
         class="nav-item nav-item-muted"
         :class="{ active: isActive('llm-traces') }"
         type="button"
@@ -62,6 +65,7 @@ function isActive(name: string): boolean {
         LLM Trace
       </button>
       <button
+        v-if="auth.isAdmin()"
         class="nav-item nav-item-muted"
         :class="{ active: isActive('admin-metrics') }"
         type="button"
@@ -70,6 +74,17 @@ function isActive(name: string): boolean {
         指标管理
       </button>
     </nav>
+
+    <section class="user-panel" v-if="auth.isLoggedIn()">
+      <div class="user-avatar">{{ auth.user?.display_name?.charAt(0) || 'U' }}</div>
+      <div class="user-info">
+        <strong>{{ auth.user?.display_name || auth.user?.username }}</strong>
+        <span>{{ auth.user?.role_code }}</span>
+      </div>
+      <button class="logout-btn" title="退出登录" @click="auth.logout(); router.push({ name: 'login' })">
+        退出
+      </button>
+    </section>
 
     <section class="source-panel">
       <h2>数据源</h2>
