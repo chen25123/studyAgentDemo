@@ -67,6 +67,7 @@ class MetricQueryGraph:
         builder.add_node("validate_plan", self._validate_plan)
         builder.add_node("execute_metric", self._execute_metric)
         builder.add_node("execute_org_query", self._execute_org_query)
+        builder.add_node("execute_user_query", self._execute_user_query)
         builder.add_node("compose_answer", self._compose_answer)
 
         builder.set_entry_point("classify_intent")
@@ -77,6 +78,7 @@ class MetricQueryGraph:
             {
                 "resolve_time": "resolve_time",
                 "execute_org_query": "execute_org_query",
+                "execute_user_query": "execute_user_query",
                 "compose_answer": "compose_answer",
             },
         )
@@ -94,6 +96,7 @@ class MetricQueryGraph:
         )
         builder.add_edge("execute_metric", "compose_answer")
         builder.add_edge("execute_org_query", "compose_answer")
+        builder.add_edge("execute_user_query", "compose_answer")
         builder.set_finish_point("compose_answer")
 
         return builder.compile()
@@ -105,15 +108,18 @@ class MetricQueryGraph:
     async def _classify_intent(self, state: MetricAgentState) -> dict:
         last_msg = state["messages"][-1].content if state["messages"] else ""
         prompt = (
-            "判断用户意图。只回复一个词：metric_query / org_query / general_chat。\n"
+            "判断用户意图。只回复一个词：metric_query/org_query/user_query/general_chat。\n"
             "metric_query：查指标（关闭率、Bug数、延期率、统计数等）。\n"
-            "org_query：查组织架构、部门树、团队层级、人员分布等。\n"
+            "org_query：查组织架构、部门树、公司层级。\n"
+            "user_query：查人员名单、部门有哪些人、某人信息、谁是什么职位。\n"
             "general_chat：闲聊、问候、非数据查询。\n"
             f"\n用户问题：{last_msg}"
         )
         resp = await self.llm.ainvoke([HumanMessage(content=prompt)])
         raw = str(resp.content).strip().lower()
-        if "org" in raw:
+        if "user" in raw:
+            intent = "user_query"
+        elif "org" in raw:
             intent = "org_query"
         elif "metric" in raw:
             intent = "metric_query"
@@ -376,6 +382,49 @@ class MetricQueryGraph:
 
         return {"final_answer": "\n".join(lines), "chart_b64": chart_b64}
 
+    async def _execute_user_query(self, state: MetricAgentState) -> dict:
+        """执行人员查询 —— 列表模式返回人员明细。"""
+        from llm.repositories.user_metric_repository import UserMetricRepository
+        from llm.schemas.user_metric import UserMetricQuery as UMQ
+
+        last_msg = state["messages"][-1].content if state["messages"] else ""
+        prompt = (
+            "从用户问题中提取过滤条件。返回 JSON 如 {\"filters\": {}}。\n"
+            "可用过滤：org_name / department / job_title / role_code / display_name。\n"
+            "例如问'研发中心有哪些人' → {\"filters\":{\"org_name\":\"研发中心\"}}\n"
+            f"\n用户问题：{last_msg}"
+        )
+        resp = await self.llm.ainvoke([HumanMessage(content=prompt)])
+        raw = str(resp.content).strip()
+        filters = {}
+        try:
+            filters = json.loads(raw).get("filters", {})
+        except json.JSONDecodeError:
+            pass
+
+        repo = UserMetricRepository()
+        rows = repo.query_metrics(
+            UMQ(metrics=["user_count"], filters=filters, group_by=[], list_mode=True)
+        )
+
+        if not rows:
+            return {"final_answer": "未查询到符合条件的人员。"}
+
+        lines = [f"人员列表（共 {len(rows)} 人）："]
+        for r in rows:
+            d = r.dimensions
+            name = d.get("display_name", "")
+            title = d.get("position_title") or d.get("job_title") or ""
+            org = d.get("org_name") or d.get("department") or ""
+            parts = [name]
+            if title:
+                parts.append(title)
+            if org:
+                parts.append(f"({org})")
+            lines.append("- " + " | ".join(parts))
+
+        return {"final_answer": "\n".join(lines)}
+
     # ============================================================
     # Chart Builder
     # ============================================================
@@ -424,6 +473,8 @@ class MetricQueryGraph:
             return "resolve_time"
         if intent == "org_query":
             return "execute_org_query"
+        if intent == "user_query":
+            return "execute_user_query"
         return "compose_answer"
 
     def _route_after_validate(self, state: MetricAgentState) -> str:
@@ -470,6 +521,14 @@ class MetricQueryGraph:
         if intent == "org_query":
             yield self._sse("node_start", {"node": "execute_org_query", "label": "查询组织架构"})
             current_state.update(await self._execute_org_query(current_state))
+            current_state.update(await self._compose_answer(current_state))
+            yield self._sse("message_delta", {"content": current_state["final_answer"]})
+            yield self._sse("final", {})
+            return
+
+        if intent == "user_query":
+            yield self._sse("node_start", {"node": "execute_user_query", "label": "查询人员"})
+            current_state.update(await self._execute_user_query(current_state))
             current_state.update(await self._compose_answer(current_state))
             yield self._sse("message_delta", {"content": current_state["final_answer"]})
             yield self._sse("final", {})
